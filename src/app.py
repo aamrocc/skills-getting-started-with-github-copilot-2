@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
+import re
 from pathlib import Path
 
 app = FastAPI(title="Mergington High School API",
@@ -78,6 +79,12 @@ activities = {
 }
 
 
+def validate_email(email: str) -> bool:
+    """Validate email format using regex"""
+    pattern = r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
+    return re.match(pattern, email) is not None
+
+
 @app.get("/")
 def root():
     return RedirectResponse(url="/static/index.html")
@@ -91,6 +98,10 @@ def get_activities():
 @app.post("/activities/{activity_name}/signup")
 def signup_for_activity(activity_name: str, email: str):
     """Sign up a student for an activity"""
+    # Validate email format
+    if not validate_email(email):
+        raise HTTPException(status_code=400, detail="Invalid email address format")
+    
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -105,3 +116,16 @@ def signup_for_activity(activity_name: str, email: str):
     
     activity["participants"].append(email)
     return {"message": f"Signed up {email} for {activity_name}"}
+
+
+@app.delete("/unregister")
+def unregister_from_activity(email: str):
+    """Unregister a student from an activity"""
+    # Find and remove the participant from the activity
+    for activity_name, activity in activities.items():
+        if email in activity["participants"]:
+            activity["participants"].remove(email)
+            return {"message": f"Unregistered {email} from {activity_name}"}
+    
+    raise HTTPException(status_code=404, detail="Participant not found in any activity")
+
